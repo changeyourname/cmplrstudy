@@ -188,39 +188,50 @@ void List::ClearList() {
 }
 
 bool List::RemoveFromList(const std::string &data) {
-  if( count_ == 0) {
-    fprintf(stderr,"ERR: list is clear\n");
+  if(count_ == 0) {
     return 1;
   }
   Elem *r;
   bool flag = false;
   for(r = tail_; r != NULL; r = r->GetPrev()) {
     if(strcmp(r->GetData(), data.c_str()) == 0) {
-      if(r == head_) {
-        if(count_ == 1) {
+        if(r == head_) {
+          if(count_ == 1) {
           delete r;
           flag = true;
           head_= NULL;
+          count_--;
         }
         else if(count_ != 1) { 
           head_ = r->GetNext();
           r->GetNext()->SetPrev(NULL);
           delete r;
           flag = true;
+          count_--;
           }
         }
       else if(r == tail_) {
-        tail_ = r->GetPrev();
-        r->GetPrev()->SetNext(NULL);
-        delete r;
-        flag = true;
-        } 
+        if (count_ != 1) {
+          tail_ = r->GetPrev();
+          r->GetPrev()->SetNext(NULL);
+          delete r;
+          flag = true;
+          count_--;
+        }
+        else {
+          tail_ = NULL;
+          head_ = NULL;
+          delete r;
+          flag = true;
+          count_--;
+        }
+      } 
       else {
       r->GetPrev()->SetNext(r->GetNext());
       r->GetNext()->SetPrev(r->GetPrev());
       delete r;
-      count_--;
       flag = true;
+      count_--;
         }
       }
     }
