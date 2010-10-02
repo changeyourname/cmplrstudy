@@ -40,7 +40,7 @@ class List{
     bool RemoveFromList(const std::string& data);
     void ListPrint(void);
     void ClearList(void);
-    List(void);
+    explicit List(void);
     virtual ~List(void);
     
   private:

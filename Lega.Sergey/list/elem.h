@@ -36,8 +36,8 @@ class Elem{
     void SetPrev(Elem *prev);
     void SetNext(Elem *next);
     void SetData(const std::string &data);
-    Elem(const std::string &data);
-    Elem(void);
+    explicit Elem(const std::string &data);
+    explicit Elem(void);
     virtual ~Elem(void) {};
     
   private:
