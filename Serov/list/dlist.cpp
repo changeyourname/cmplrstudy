@@ -11,7 +11,7 @@ class element
     element* next;
     element* prev;
 public:
-friend class dlist;23
+friend class dlist;
 };
 
 //element* mass [6]={};
