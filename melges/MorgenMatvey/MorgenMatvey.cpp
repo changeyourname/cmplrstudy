@@ -37,7 +37,7 @@ namespace {
 }
 
 char TestStruct::ID = 0;
-static RegisterPass<TestChar> X("Opt1", "Hello World Pass");
+static RegisterPass<TestStruct> X("Opt", "Hello World Pass");
 
 namespace {
   // Hello2 - The second implementation with getAnalysisUsage implemented.
@@ -60,5 +60,5 @@ namespace {
 }
 
 char TestStruct2::ID = 0;
-static RegisterPass<Hello2>
+static RegisterPass<TestStruct2>
 Y("Opt2", "Hello World Pass (with getAnalysisUsage implemented)");
