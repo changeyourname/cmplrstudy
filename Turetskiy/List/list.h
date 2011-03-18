@@ -1,16 +1,9 @@
 #pragma once
 
-#include <assert.h>
-#include <iostream>
-
-struct Data{
-    //User's information
-};
-
 
 struct Node{
-        Data data;
-        Node *next, *prev;
+        void *data;
+        struct Node *next, *prev;
 };
 
 
@@ -22,18 +15,18 @@ class List{
         List();
         ~List();
 
-        Data getData(Node *node);
-        Node* getFirst();   //Get first Node in List
-        Node* getLast();    //Get last Node in List
-        void addAfter(Data data, Node *node);   //Add after Node
-        void addBefore(Data data, Node *node);  //Add before Node
-        void addToEnd(Data data);   //Add to end of List
-        void addToStart(Data data); //Add to start of List
-        void delFirst();    //Delete first Node in List
-        void delLast();     //Delete last Node in List
-        void delNode(Node *node);   //Delete Node
-        void rndBack();     //Round from end to start of List
-        void rndForward();  //Round from start to end of List
+        void* GetData(Node *node);					//Get data
+        Node* GetFirst();							//Get first Node in List
+		Node* GetLast();							//Get last Node in List
+		Node* GetNext(Node* node);					//Get next Node
+		Node* GetPrev(Node* node);					//Get previous Node
+        void AddAfter(void *data, Node *node);		//Add after Node
+        void AddBefore(void *data, Node *node);		//Add before Node
+        void AddToEnd(void *data);					//Add to end of List
+        void AddToStart(void *data);				//Add to start of List
+        void DelFirst();							//Delete first Node in List
+        void DelLast();								//Delete last Node in List
+        void DelNode(Node *node);					//Delete Node
 };
 
 List::List(){
@@ -45,35 +38,47 @@ List::~List(){
     Node *n = start;
     while(n != 0){
         if(n->next == 0){
+			delete(n->data);
             delete(n);
             break;
         }
         else{
             n = n->next;
+			delete(n->prev->data);
             delete(n->prev);
         }
     }
 }
 
-Data List::getData(Node *node){
+void* List::GetData(Node *node){
     assert(node != 0);
     return node->data;
 }
 
-Node* List::getFirst(){
+Node* List::GetFirst(){
     return start;
 }
 
-Node* List::getLast(){
+Node* List::GetLast(){
     return end;
 }
 
-void List::addAfter(Data data, Node *node){
+Node* List::GetNext(Node *node){
+	if(node == 0) return 0;
+	return node->next;
+}
+
+Node* List::GetPrev(Node *node){
+	if(node == 0) return 0;
+	return node->prev;
+}
+
+void List::AddAfter(void *data, Node *node){
     assert(node != 0);
     Node *n = new Node();
     n->data = data;
     if(node->next == 0){
-        addToEnd(data);
+        AddToEnd(data);
     }
     else{
         n->prev = node;
@@ -83,12 +88,12 @@ void List::addAfter(Data data, Node *node){
     }
 }
 
-void List::addBefore(Data data, Node *node){
+void List::AddBefore(void *data, Node *node){
     assert(node != 0);
     Node *n = new Node();
     n->data = data;
     if(node->prev == 0){
-        addToStart(data);
+        AddToStart(data);
     }
     else{
         n->next = node;
@@ -98,17 +103,20 @@ void List::addBefore(Data data, Node *node){
     }
 }
 
-void List::addToEnd(Data data){
+void List::AddToEnd(void *data){
     Node *n = new Node;
     n->data = data;
     n->next = NULL;
     n->prev = end;
-    if(end != 0) end->next = n;
-    end = n;
-    if(start == 0) start = n;
+	if(end == 0) start = n;
+	else{
+		assert(end != 0);
+		end->next = n;
+	}
+	end = n;
 }
 
-void List::addToStart(Data data){
+void List::AddToStart(void *data){
     Node *n = new Node();
     n->data = data;
     n->prev = NULL;
@@ -118,63 +126,50 @@ void List::addToStart(Data data){
     if(end == 0) end = n;
 }
 
-void List::delFirst(){
+void List::DelFirst(){
     assert(start != 0);
     if(start->next == 0){
+		delete(start->data);
         delete(start);
         start = NULL;
         end = NULL;
     }
     else{
         start = start->next;
+		delete(start->prev->data);
         delete(start->prev);
         start->prev = NULL;
     }
 }
 
-void List::delLast(){
+void List::DelLast(){
     assert(end != 0);
     if(end->prev == 0){
+		delete(end->data);
         delete(end);
         start = NULL;
         end = NULL;
     }
     else{
         end = end->prev;
+		delete(end->next->data);
         delete(end->next);
         end->next = NULL;
     }
 }
 
-void List::delNode(Node *node){
+void List::DelNode(Node *node){
     assert(node != 0);
     if(node->prev == 0){
-        delFirst();
+        DelFirst();
         return;
     }
     if(node->next == 0){
-        delLast();
+        DelLast();
         return;
     }
     node->prev->next = node->next;
     node->next->prev = node->prev;
+	delete(node->data);
     delete(node);
-}
-
-void List::rndBack(){
-    assert(end != 0);
-    Node *n = end;
-    while(n != 0){
-        //TODO
-        n = n->prev;
-    }
-}
-
-void List::rndForward(){
-    assert(start != 0);
-    Node *n = start;
-    while(n != 0){
-        //TODO
-        n = n->next;
-    }
 }
