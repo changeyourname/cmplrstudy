@@ -27,33 +27,30 @@ FunctionPass *llvm::createCSEPass(){
 
 
 bool CSE::runOnFunction(Function &F){
+	errs() << "Function: " << F.getName() << "\n";
+	DEBUG(PrintFunction(F));
+
+	bb_number = F.size();
+
+	BasicBlockInfo **table = new BasicBlockInfo*[bb_number];
+	unsigned int i;
+
+	CreateBasicBlockTable(F, table);
+	
+	MakeAllInputLists(table);
+
 	for(Function::iterator BB = F.begin(); BB != F.end(); BB++){
-		List *del = new List();
-		List *list = new List();
-		List *var = new List();
-		for(BasicBlock::iterator I = BB->begin(); I != BB->end(); I++){
-			DEBUG(errs() << *I << "\n");
-			Data *data = GetInfo(I);
-			if(data->opcode >= 8 && data->opcode <= 25) BinaryProcessing(data, del, list, var);
-			else if(data->opcode == 27) LoadProcessing(data, del, list, var);
-			else if(data->opcode == 28) StoreProcessing(data, list, var);
-			else{
-				DeadValueReplacement(data, var);
-				delete data;
-			}
-		}
-		DeadInstructionElimination(del);
-		delete del;
-		delete list;
-		delete var;
+		BasicBlockInfo *info = table[GetNumByID(BB, table)];
+		LocalCSE(BB, info->list);
 	}
-	DEBUG(errs() << "\n\n--------------------------------------------------------------------------\n\n\n");
-	for(Function::iterator BB = F.begin(); BB != F.end(); BB++){
-		for(BasicBlock::iterator I = BB->begin(); I != BB->end(); I++){
-			DEBUG(errs() << *I << "\n");
-		}
-	}
-	DEBUG(errs() << "\n\n--------------------------------------------------------------------------\n\n\n");
-	errs() << "Eliminated:\n\t" << binary << " binary instruction(s)\n\t" << load << " load instruction(s)\n";
+
+	for(i = 0; i < bb_number; i++) delete table[i];
+	delete table;
+
+	DEBUG(PrintFunction(F));
+	errs() << "   " << binary << " binary instruction(s) eliminated\n";
+	errs() << "   " << load << " load instruction(s) eliminated\n\n\n";
+	binary = 0;
+	load = 0;
 	return false;
 }
