@@ -1,6 +1,9 @@
 #pragma once
 
 
+
+///DATA TYPES
+
 struct Node{
         void *data;
         struct Node *next, *prev;
@@ -30,6 +33,7 @@ class List{
 
 
 
+///LIST FUNCTION'S DEFINITIONS
 
 List::List(){
     start = 0;
@@ -53,23 +57,23 @@ List::~List(){
     }
 }
 
-
+//Is List empty or not? 
 bool List::IsEmpty(){
 	if(end == 0 || start == 0) return true;
 	else return false;
 }
 
-
+//Get first Node in List
 Node* List::GetFirst(){
     return start;
 }
 
-
+//Get last Node in List
 Node* List::GetLast(){
     return end;
 }
 
-
+//Add Data to end of List
 void List::AddToEnd(void *data){
     Node *n = new Node;
     n->data = data;
@@ -80,7 +84,7 @@ void List::AddToEnd(void *data){
 	end = n;
 }
 
-
+//Add Data to start of List
 void List::AddToStart(void *data){
     Node *n = new Node();
     n->data = data;
@@ -91,7 +95,7 @@ void List::AddToStart(void *data){
     if(end == 0) end = n;
 }
 
-
+//Delete first Node in List, but don't delete Node->Data from memory
 void List::ClrFirst(){
 	assert(start != 0);
     if(start->next == 0){
@@ -106,7 +110,7 @@ void List::ClrFirst(){
     }
 }
 
-
+//Delete last Node in List, but don't delete Node->Data from memory
 void List::ClrLast(){
     assert(end != 0);
     if(end->prev == 0){
@@ -121,7 +125,7 @@ void List::ClrLast(){
     }
 }
 
-
+//Delete Node in List, but don't delete Node->Data from memory
 void List::ClrNode(Node *node){
     assert(node != 0);
     if(node->prev == 0){
@@ -137,7 +141,7 @@ void List::ClrNode(Node *node){
     delete(node);
 }
 
-
+//Delete first Node in List and delete Node->Data from memory
 void List::DelFirst(){
     assert(start != 0);
     if(start->next == 0){
@@ -154,7 +158,7 @@ void List::DelFirst(){
     }
 }
 
-
+//Delete last Node in List and delete Node->Data from memory
 void List::DelLast(){
     assert(end != 0);
     if(end->prev == 0){
@@ -171,7 +175,7 @@ void List::DelLast(){
     }
 }
 
-
+//Delete Node in List and delete Node->Data from memory
 void List::DelNode(Node *node){
     assert(node != 0);
     if(node->prev == 0){
