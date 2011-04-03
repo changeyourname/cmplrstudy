@@ -13,6 +13,186 @@ FunctionPass *llvm::createCSEPass(){
 
 
 
+///CSE::FUNCTION'S DEFINITION
+
+bool CSE::runOnFunction(Function &F){
+	errs() << "Function: " << F.getName() << "\n";
+	DEBUG(PrintFunction(F));
+
+	bb_number = F.size();
+	binary = 0;
+	load = 0;
+
+	BasicBlockInfo **table = new BasicBlockInfo*[bb_number];
+	unsigned int i;
+
+	CreateBasicBlockTable(F, table);
+	
+	MakeAllInputLists(table);
+
+	List *var = new List();
+
+	for(Function::iterator BB = F.begin(); BB != F.end(); BB++){
+		BasicBlockInfo *info = table[GetNumByID(BB, table)];
+		LocalCSE(BB, info->list, var);
+	}
+
+	delete var;
+
+	for(i = 0; i < bb_number; i++) delete table[i];
+	delete table;
+
+	DEBUG(PrintFunction(F));
+	errs() << "   " << binary << " binary instruction(s) eliminated\n";
+	errs() << "   " << load << " load instruction(s) eliminated\n\n\n";
+	return false;
+}
+
+
+
+///DATA::FUNCTION'S DEFINITION
+
+Data::Data(Instruction *ins){
+	unsigned int i;
+	I = ins;
+	opcode = ins->getOpcode();
+	num = ins->getNumOperands();
+	operands = new Value*[num];
+	for(i = 0; i < num; i++) operands[i] = ins->getOperand(i);
+}
+
+Data::~Data(){
+	delete operands;
+}
+
+//Replace dead variables
+void Data::DeadValueReplacement(List *var){
+	unsigned int i;
+	Node *node = var->GetFirst();
+	while(node != NULL){
+		Var *v = (Var*) node->data;
+		for(i = 0; i < num; i++){
+			if(operands[i] == v->res){
+				I->setOperand(i, v->arg);
+				operands[i] = v->arg;
+			}
+		}
+		node = node->next;
+	}
+}
+
+/*Function, which process Binary Instructions in Local CSE
+First, this function replace dead values in Instruction
+After that it check Instruction in List.
+If we have similar Instruction in List, we can remove this and we get new equal variable's pair
+Note: if del == var == NULL we use this function only to create Output List (used in MakeListOut function)
+*/
+void Data::ProcessingBinary(List *del,  List *list, List *var){
+	bool flag = false;
+	if(var != NULL) DeadValueReplacement(var);
+	Node *node = list->GetFirst();
+	while(node != NULL){
+		Data *dt = (Data*) node->data;
+		if(opcode == dt->opcode){
+			if(operands[0] == dt->operands[0] && operands[1] == dt->operands[1]){
+				if(var != NULL && del != NULL){
+					Instruction **i = new Instruction*;
+					Var *v = new Var();
+					*i = I;
+					v->res = I;
+					v->arg = dt->I;
+					del->AddToEnd(i);
+					var->AddToEnd(v);
+					binary++;
+				}
+				flag = true;
+			}
+			if(opcode == Instruction::Add
+				|| opcode == Instruction::FAdd
+				|| opcode == Instruction::Mul
+				|| opcode == Instruction::FMul
+				|| opcode == Instruction::And
+				|| opcode == Instruction::Or
+				|| opcode == Instruction::Xor){
+				if(operands[0] == dt->operands[1] && operands[1] == dt->operands[0]){
+					if(var != NULL && del != NULL){
+						Instruction **i = new Instruction*;
+						Var *v = new Var();
+						*i = I;
+						v->res = I;
+						v->arg = dt->I;
+						del->AddToEnd(i);
+						var->AddToEnd(v);
+						binary++;
+					}
+					flag = true;
+				}
+			}
+		}
+		node = node->next;
+	}
+	if(flag == false) list->AddToEnd(this);
+}
+
+/*Function, which process Load Instructions in Local CSE
+This function check Load Instruction in List.
+If we have similar one, we can remove this and we get new equal variable's pair
+Note: if del == var == NULL we use this function only to create Output List (used in MakeListOut function)
+*/
+void Data::ProcessingLoad(List *del,  List *list, List * var){
+	bool flag = false;
+	Node *node = list->GetFirst();
+	while(node != NULL){
+		Data *dt = (Data*) node->data;
+		if(dt->opcode == Instruction::Load){
+			if(dt->operands[0] == operands[0]){
+				if(var != NULL && del != NULL){
+					Instruction **i = new Instruction*;
+					Var *v = new Var();
+					*i = I;
+					v->res = I;
+					v->arg = dt->I;
+					del->AddToEnd(i);
+					var->AddToEnd(v);
+					load++;
+				}
+				flag = true;
+				break;
+			}
+		}
+		node = node->next;
+	}
+	if(flag == false) list->AddToEnd(this);
+}
+
+/*Function, which process Store Instructions in Local CSE
+First, this function replace dead values in Instruction
+After that it delete all Instructions which contain variable we stored into
+Note: if var == NULL we use this function only to create Output List (used in MakeListOut function)
+*/
+void Data::ProcessingStore(List *list, List *var){
+	unsigned int i;
+	if(var != NULL) DeadValueReplacement(var);
+	Node *node = list->GetFirst();
+	while(node != NULL){
+		bool flag = false;
+		Data *d = (Data*) node->data;
+		for(i = 0; i < d->num; i++){
+			if(d->operands[i] == operands[1]){
+				Node *n = node->next;
+				list->DelNode(node);
+				node = n;
+				flag = true;
+				break;
+			}
+		}
+		if(flag == false) node = node->next;
+	}
+	delete this;
+}
+
+
+
 ///LIST'S FUNCTIONS
 
 //Check Lists equality (only for Lists of Data)
@@ -44,17 +224,12 @@ List* ListIntersection(List *list1, List *list2){
 	List *intersection = new List();
 	Data *data1, *data2;
 	Node *node1, *node2;
-	unsigned int i;
 	for(node1 = list1->GetFirst(); node1 != 0; node1 = node1->next){
 		data1 = (Data*) node1->data;
 		for(node2 = list2->GetFirst(); node2 != 0; node2 = node2->next){
 			data2 = (Data*) node2->data;
 			if(data1->I == data2->I){
-				Data *data = new Data();
-				data->I = data1->I;
-				data->num = data1->num;
-				data->opcode = data1->opcode;
-				for(i = 0; i < data->num; i++) data->operands[i] = data1->operands[i];
+				Data *data = new Data(data1->I);
 				intersection->AddToEnd(data);
 				break;
 			}
@@ -66,14 +241,9 @@ List* ListIntersection(List *list1, List *list2){
 //Copy List (only for Lists of Data)
 void ListCopy(List *src, List *dst){
 	Node *node;
-	unsigned int i;
 	for(node = src->GetFirst(); node != 0; node = node->next){
-		Data *data_dst = new Data();
 		Data *data_src = (Data*) node->data;
-		data_dst->I = data_src->I;
-		data_dst->num = data_src->num;
-		data_dst->opcode = data_src->opcode;
-		for(i = 0; i < data_dst->num; i++) data_dst->operands[i] = data_src->operands[i];
+		Data *data_dst = new Data(data_src->I);
 		dst->AddToEnd(data_dst);
 	}
 }
@@ -82,16 +252,22 @@ void ListCopy(List *src, List *dst){
 
 ///LOCAL CSE'S FUNCTIONS
 
-//Main Local CSE function
+/*Main Local CSE function
+This function look through all Basic Block's Instructions and process them. 
+At the end it delete all dead Instructions.
+list_input - Input List of Basic Block, but Local CSE change it while work
+var - List of equal variables (it is one for all Basic Blocks)
+del - List of dead Instruction
+*/
 void LocalCSE(BasicBlock *BB, List *list_input, List *var){
 	List *del = new List();
 	for(BasicBlock::iterator I = BB->begin(); I != BB->end(); I++){
-		Data *data = GetInfo(I);
-		if(data->opcode >= Instruction::Add && data->opcode <= Instruction::Xor) ProcessingBinary(data, del, list_input, var);
-		else if(data->opcode == Instruction::Load) ProcessingLoad(data, del, list_input, var);
-		else if(data->opcode == Instruction::Store) ProcessingStore(data, list_input, var);
+		Data *data = new Data(I);
+		if(data->opcode >= Instruction::Add && data->opcode <= Instruction::Xor) data->ProcessingBinary(del, list_input, var);
+		else if(data->opcode == Instruction::Load) data->ProcessingLoad(del, list_input, var);
+		else if(data->opcode == Instruction::Store) data->ProcessingStore(list_input, var);
 		else{
-			DeadValueReplacement(data, var);
+			data->DeadValueReplacement(var);
 			delete data;
 		}
 	}
@@ -110,113 +286,6 @@ void DeadInstructionElimination(List *del){
 	}
 }
 
-//Replace dead variables
-void DeadValueReplacement(Data *data, List *var){
-	unsigned int i;
-	Node *node = var->GetFirst();
-	while(node != 0){
-		Var *v = (Var*) node->data;
-		for(i = 0; i < data->num; i++){
-			if(data->operands[i] == v->res){
-				data->I->setOperand(i, v->arg);
-				data->operands[i] = v->arg;
-			}
-		}
-		node = node->next;
-	}
-}
-
-//Function, which process Binary Instructions in Local CSE
-void ProcessingBinary(Data *data, List *del,  List *list, List *var){
-	bool flag = false;
-	DeadValueReplacement(data, var);
-	Node *node = list->GetFirst();
-	while(node != 0){
-		Data *dt = (Data*) node->data;
-		if(data->opcode == dt->opcode){
-			if(data->operands[0] == dt->operands[0] && data->operands[1] == dt->operands[1]){
-				Instruction **I = new Instruction*;
-				Var *v = new Var();
-				*I = data->I;
-				v->res = data->I;
-				v->arg = dt->I;
-				del->AddToEnd(I);
-				var->AddToEnd(v);
-				binary++;
-				flag = true;
-			}
-			if(data->opcode == Instruction::Add
-				|| data->opcode == Instruction::FAdd
-				|| data->opcode == Instruction::Mul
-				|| data->opcode == Instruction::FMul
-				|| data->opcode == Instruction::And
-				|| data->opcode == Instruction::Or
-				|| data->opcode == Instruction::Xor){
-				if(data->operands[0] == dt->operands[1] && data->operands[1] == dt->operands[0]){
-					Instruction **I = new Instruction*;
-					Var *v = new Var();
-					*I = data->I;
-					v->res = data->I;
-					v->arg = dt->I;
-					del->AddToEnd(I);
-					var->AddToEnd(v);
-					binary++;
-					flag = true;
-				}
-			}
-		}
-		node = node->next;
-	}
-	if(flag == false) list->AddToEnd(data);
-}
-
-//Function, which process Load Instructions in Local CSE
-void ProcessingLoad(Data *data, List *del,  List *list, List * var){
-	bool flag = false;
-	Node *node = list->GetFirst();
-	while(node != 0){
-		Data *dt = (Data*) node->data;
-		if(dt->opcode == Instruction::Load){
-			if(dt->operands[0] == data->operands[0]){
-				Instruction **I = new Instruction*;
-				Var *v = new Var();
-				*I = data->I;
-				v->res = data->I;
-				v->arg = dt->I;
-				del->AddToEnd(I);
-				var->AddToEnd(v);
-				load++;
-				flag = true;
-				break;
-			}
-		}
-		node = node->next;
-	}
-	if(flag == false) list->AddToEnd(data);
-}
-
-//Function, which process Store Instructions in Local CSE
-void ProcessingStore(Data *data, List *list, List *var){
-	unsigned int i;
-	DeadValueReplacement(data, var);
-	Node *node = list->GetFirst();
-	while(node != 0){
-		bool flag = false;
-		Data *d = (Data*) node->data;
-		for(i = 0; i < d->num; i++){
-			if(d->operands[i] == data->operands[1]){
-				Node *n = node->next;
-				list->DelNode(node);
-				node = n;
-				flag = true;
-				break;
-			}
-		}
-		if(flag == false) node = node->next;
-	}
-	delete data;
-}
-
 
 
 ///MAKELIST'S FUNCTIONS
@@ -229,12 +298,14 @@ void MakeAllInputLists(BasicBlockInfo **table){
 	table[0]->list = entry_list;
 	queue->AddToEnd(table[0]);
 
+	//We pass all Basic Blocks
 	while(queue->IsEmpty() == false){
 		BasicBlockInfo *BBI = (BasicBlockInfo*) queue->GetFirst()->data;
 		queue->ClrFirst();
 		List *list_out = new List();
 		ListCopy(BBI->list, list_out);
 
+		//Make Output List for current Basic Block
 		MakeListOut(BBI->id, BBI->list, list_out);
 
 		DEBUG(errs() << BBI->id->getName() << "\n");
@@ -243,16 +314,20 @@ void MakeAllInputLists(BasicBlockInfo **table){
 		DEBUG(PrintDataList(list_out));
 		DEBUG(errs() << "---\n");
 
+		//We look through all Successors of Basic Block
 		for(succ_iterator SUCC = succ_begin(BBI->id); SUCC != succ_end(BBI->id); SUCC++){
 			BasicBlockInfo *info = table[GetNumByID(*SUCC, table)];
+			//If we didn't visit this Successor: it's Input List is our Output List
 			if(info->list == NULL){
 				List *list = new List();
 				ListCopy(list_out, list);
 				info->list = list;
 				queue->AddToEnd(info);
 			}
+			//If we visited this Successor: it's Input List is intersection with our Output List
 			else{
 				List *intersection = ListIntersection(list_out, info->list);
+				//If we have some changes in Successor's Input List, we should process it once again
 				if(ListComparison(intersection, info->list) == false){
 					delete info->list;
 					info->list = intersection;
@@ -266,82 +341,17 @@ void MakeAllInputLists(BasicBlockInfo **table){
 	delete queue;
 }
 
-//Function, which make Output List of Basic Block
+/*Function, which make Output List of Basic Block
+We use for it Local CSE functions with del == var == NULL
+*/
 void MakeListOut(BasicBlock *BB, List *list_in, List *list_out){
 	for(BasicBlock::iterator I = BB->begin(); I != BB->end(); I++){
-		Data *data = GetInfo(I);
-		if(data->opcode >= Instruction::Add && data->opcode <= Instruction::Xor) MakeBinary(data, list_out);
-		else if(data->opcode == Instruction::Load) MakeLoad(data, list_out);
-		else if(data->opcode == Instruction::Store) MakeStore(data, list_out);
+		Data *data = new Data(I);
+		if(data->opcode >= Instruction::Add && data->opcode <= Instruction::Xor) data->ProcessingBinary(NULL, list_out, NULL);
+		else if(data->opcode == Instruction::Load) data->ProcessingLoad(NULL, list_out, NULL);
+		else if(data->opcode == Instruction::Store) data->ProcessingStore(list_out, NULL);
 		else delete data;
 	}
-}
-
-//Function, which process Binary Instructions in Make All Input Lists
-void MakeBinary(Data *data, List *list){
-	bool flag = false;
-	Node *node = list->GetFirst();
-	while(node != 0){
-		Data *dt = (Data*) node->data;
-		if(data->opcode == dt->opcode){
-			if(data->operands[0] == dt->operands[0] && data->operands[1] == dt->operands[1]){
-				flag = true;
-				break;
-			}
-			if(data->opcode == Instruction::Add
-				|| data->opcode == Instruction::FAdd
-				|| data->opcode == Instruction::Mul
-				|| data->opcode == Instruction::FMul
-				|| data->opcode == Instruction::And
-				|| data->opcode == Instruction::Or
-				|| data->opcode == Instruction::Xor){
-				if(data->operands[0] == dt->operands[1] && data->operands[1] == dt->operands[0]){
-					flag = true;
-					break;
-				}
-			}
-		}
-		node = node->next;
-	}
-	if(flag == false) list->AddToEnd(data);
-}
-
-//Function, which process Load Instructions in Make All Input Lists
-void MakeLoad(Data *data, List *list){
-	bool flag = false;
-	Node *node = list->GetFirst();
-	while(node != 0){
-		Data *dt = (Data*) node->data;
-		if(dt->opcode == Instruction::Load){
-			if(dt->operands[0] == data->operands[0]){
-				flag = true;
-				break;
-			}
-		}
-		node = node->next;
-	}
-	if(flag == false) list->AddToEnd(data);
-}
-
-//Function, which process Store Instructions in Make All Input Lists
-void MakeStore(Data *data, List *list){
-	unsigned int i;
-	Node *node = list->GetFirst();
-	while(node != 0){
-		bool flag = false;
-		Data *d = (Data*) node->data;
-		for(i = 0; i < d->num; i++){
-			if(d->operands[i] == data->operands[1]){
-				Node *n = node->next;
-				list->DelNode(node);
-				node = n;
-				flag = true;
-				break;
-			}
-		}
-		if(flag == false) node = node->next;
-	}
-	delete data;
 }
 
 
@@ -373,17 +383,6 @@ void PrintFunction(Function &F){
 
 
 ///ANOTHER FUNCTIONS
-
-//Get information about Instruction
-Data* GetInfo(Instruction *I){
-	unsigned int i;
-	Data *data = new Data();
-	data->I = I;
-	data->opcode = I->getOpcode();
-	data->num = I->getNumOperands();
-	for(i = 0; i < data->num; i++) data->operands[i] = I->getOperand(i);
-	return data;
-}
 
 //Return Basic Block position in Basic Block Info Table by id
 int GetNumByID(BasicBlock *BB, BasicBlockInfo **table){

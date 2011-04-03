@@ -20,6 +20,7 @@ using namespace llvm;
 
 ///DATA TYPES
 
+//CSE struct
 namespace{
 	struct CSE:public FunctionPass{
 		static char ID;
@@ -36,11 +37,18 @@ struct BasicBlockInfo{
 	List *list;
 };
 
-//Struct, which contains Instruction information
-struct Data{
-	unsigned int opcode, num;
-	Instruction *I;
-	Value *operands[32];
+//Class, which contains Instruction information
+class Data{
+	public:
+		unsigned int opcode, num;
+		Instruction *I;
+		Value **operands;
+		Data(Instruction *I);
+		~Data();
+		void DeadValueReplacement(List *var);
+		void ProcessingBinary(List *del,  List *list, List *var);
+		void ProcessingLoad(List *del,  List *list, List * var);
+		void ProcessingStore(List *list, List *var);
 };
 
 //Struct, which contains information about equal variables
@@ -66,17 +74,10 @@ void ListCopy(List *src, List *dst);
 //Local CSE functions
 void LocalCSE(BasicBlock *BB, List *list_input, List *var);
 void DeadInstructionElimination(List *del);
-void DeadValueReplacement(Data *data, List *var);
-void ProcessingBinary(Data *data, List *del,  List *list, List *var);
-void ProcessingLoad(Data *data, List *del,  List *list, List * var);
-void ProcessingStore(Data *data, List *list, List *var);
 
 //Make Basic Block's Input List functions
 void MakeAllInputLists(BasicBlockInfo **table);
-void MakeLoad(Data *data,  List *list);
-void MakeBinary(Data *data, List *list);
 void MakeListOut(BasicBlock *BB, List *list_in, List *list_out);
-void MakeStore(Data *data, List *list);
 
 //Print functions
 void PrintDataList(List *list);
@@ -85,43 +86,5 @@ void PrintVarList(List *list);
 void PrintFunction(Function &F);
 
 //Another functions
-Data* GetInfo(Instruction *I);
 int GetNumByID(BasicBlock *BB, BasicBlockInfo **table);
 void CreateBasicBlockTable(Function &F, BasicBlockInfo **table);
-
-
-
-///CSE::FUNCTION'S DEFINITION
-
-bool CSE::runOnFunction(Function &F){
-	errs() << "Function: " << F.getName() << "\n";
-	DEBUG(PrintFunction(F));
-
-	bb_number = F.size();
-
-	BasicBlockInfo **table = new BasicBlockInfo*[bb_number];
-	unsigned int i;
-
-	CreateBasicBlockTable(F, table);
-	
-	MakeAllInputLists(table);
-
-	List *var = new List();
-
-	for(Function::iterator BB = F.begin(); BB != F.end(); BB++){
-		BasicBlockInfo *info = table[GetNumByID(BB, table)];
-		LocalCSE(BB, info->list, var);
-	}
-
-	delete var;
-
-	for(i = 0; i < bb_number; i++) delete table[i];
-	delete table;
-
-	DEBUG(PrintFunction(F));
-	errs() << "   " << binary << " binary instruction(s) eliminated\n";
-	errs() << "   " << load << " load instruction(s) eliminated\n\n\n";
-	binary = 0;
-	load = 0;
-	return false;
-}
