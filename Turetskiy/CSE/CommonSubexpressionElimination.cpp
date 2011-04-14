@@ -37,10 +37,10 @@ bool CSE::runOnFunction(Function &F){
 		LocalCSE(BB, info->list, var);
 	}
 
-	delete var;
-
 	for(i = 0; i < bb_number; i++) delete table[i];
+	
 	delete table;
+	delete var;
 
 	DEBUG(PrintFunction(F));
 	errs() << "   " << binary << " binary instruction(s) eliminated\n";
@@ -107,7 +107,7 @@ void Data::ProcessingBinary(List *del,  List *list, List *var){
 				}
 				flag = true;
 			}
-			if(opcode == Instruction::Add
+			else if(opcode == Instruction::Add
 				|| opcode == Instruction::FAdd
 				|| opcode == Instruction::Mul
 				|| opcode == Instruction::FMul
@@ -374,7 +374,7 @@ void PrintFunction(Function &F){
 	for(Function::iterator BB = F.begin(); BB != F.end(); BB++){
 		errs() << "\t\t" << BB->getName() << "\n";
 		for(BasicBlock::iterator I = BB->begin(); I != BB->end(); I++){
-			errs() << *I << "\n";
+			errs() << I << "\t" << *I << "\n";
 		}
 	}
 	errs() << "\n\n--------------------------------------------------------------------------\n\n\n";
