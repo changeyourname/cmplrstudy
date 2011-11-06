@@ -1,3 +1,12 @@
+/* Author:  Serov Artem
+ * Name:    Simple list class
+ *
+ *
+ *
+ *
+*/
+
+
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
