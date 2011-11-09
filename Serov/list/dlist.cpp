@@ -1,7 +1,7 @@
 /* Author:  Serov Artem
  * Name:    Simple list class
  *
- *
+ *	new commit
  *
  *
 */
